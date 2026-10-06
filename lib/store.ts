@@ -12,6 +12,10 @@ type Entry = { v: unknown; exp?: number };
 const g = globalThis as unknown as { __splitKv?: Map<string, Entry> };
 const mem = (g.__splitKv ??= new Map());
 
+// Test-only: makes the in-memory store as slow as a network database, so race conditions show up locally.
+const testLatency = Number(process.env.KV_TEST_LATENCY_MS) || 0;
+const lag = () => (testLatency ? new Promise((r) => setTimeout(r, testLatency * Math.random())) : undefined);
+
 function memGet(key: string): unknown {
   const e = mem.get(key);
   if (!e) return null;
@@ -26,6 +30,7 @@ function memGet(key: string): unknown {
 export const kv = {
   async get<T>(key: string): Promise<T | null> {
     if (redis) return (await redis.get<T>(key)) ?? null;
+    await lag();
     const v = memGet(key);
     return v == null ? null : (structuredClone(v) as T);
   },
@@ -35,7 +40,15 @@ export const kv = {
       else await redis.set(key, value);
       return;
     }
+    await lag();
     mem.set(key, { v: structuredClone(value), exp: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined });
+  },
+  /** Sets the key only if it doesn't exist yet. Returns true if it was set. */
+  async setNX(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    if (redis) return (await redis.set(key, value, { nx: true, ex: ttlSeconds })) === "OK";
+    if (memGet(key) != null) return false;
+    mem.set(key, { v: value, exp: Date.now() + ttlSeconds * 1000 });
+    return true;
   },
   async del(key: string): Promise<void> {
     if (redis) await redis.del(key);
@@ -97,6 +110,25 @@ export async function listGroupsFor(email: string): Promise<Group[]> {
   const groups = await Promise.all(ids.map(getGroup));
   // Double-check membership in case the index is stale.
   return groups.filter((gr): gr is Group => Boolean(gr && memberEmails(gr).has(email)));
+}
+
+/**
+ * Runs `fn` while holding a short lock on `name`, so concurrent read-modify-write
+ * updates to the same group can't overwrite each other. Returns null if the lock
+ * couldn't be acquired within ~5 seconds.
+ */
+export async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | null> {
+  const key = `lock:${name}`;
+  const token = newId(16);
+  for (let i = 0; !(await kv.setNX(key, token, 10)); i++) {
+    if (i >= 50) return null;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  try {
+    return await fn();
+  } finally {
+    if ((await kv.get<string>(key)) === token) await kv.del(key);
+  }
 }
 
 export function newId(len = 12): string {

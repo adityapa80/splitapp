@@ -9,6 +9,7 @@ const MAX_CODE_ATTEMPTS = 5;
 interface PendingCode {
   hash: string;
   attempts: number;
+  expiresAt: number;
 }
 
 async function sha256(s: string): Promise<string> {
@@ -29,14 +30,14 @@ export function clientIp(req: Request): string {
 export async function createLoginCode(email: string): Promise<string> {
   const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
   const code = String(n).padStart(6, "0");
-  await kv.set(`login:${email}`, { hash: await sha256(`${email}:${code}`), attempts: 0 } satisfies PendingCode, CODE_TTL);
+  await kv.set(`login:${email}`, { hash: await sha256(`${email}:${code}`), attempts: 0, expiresAt: Date.now() + CODE_TTL * 1000 } satisfies PendingCode, CODE_TTL);
   return code;
 }
 
 export async function verifyLoginCode(email: string, code: string): Promise<"ok" | "invalid" | "expired"> {
   const key = `login:${email}`;
   const pending = await kv.get<PendingCode>(key);
-  if (!pending) return "expired";
+  if (!pending || pending.expiresAt < Date.now()) return "expired";
   if (pending.hash === (await sha256(`${email}:${code.trim()}`))) {
     await kv.del(key);
     return "ok";
@@ -44,7 +45,8 @@ export async function verifyLoginCode(email: string, code: string): Promise<"ok"
   pending.attempts += 1;
   // Too many wrong guesses: throw the code away so it can't be brute-forced.
   if (pending.attempts >= MAX_CODE_ATTEMPTS) await kv.del(key);
-  else await kv.set(key, pending, CODE_TTL);
+  // Keep the original expiry; wrong guesses must not extend the code's lifetime.
+  else await kv.set(key, pending, Math.max(1, Math.ceil((pending.expiresAt - Date.now()) / 1000)));
   return "invalid";
 }
 

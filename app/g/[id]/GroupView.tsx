@@ -42,24 +42,29 @@ export default function GroupView({ id, me }: { id: string; me: string }) {
   const [memberError, setMemberError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     try {
       const res = await fetch(`/api/groups/${id}`, { cache: "no-store" });
       if (res.status === 401) return window.location.assign(`/login?next=/g/${id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load group.");
+      // 404 means the group is gone or you were removed from it, so always show that.
+      if (!res.ok) {
+        if (res.status === 404 || !background) setLoadError(data.error || "Could not load group.");
+        return;
+      }
       setGroup(data.group);
       setStorageMode(data.storageMode);
       setEmailEnabled(Boolean(data.emailEnabled));
-    } catch (err) {
-      setLoadError((err as Error).message);
+    } catch {
+      // A failed background refresh (e.g. briefly offline) shouldn't replace the page; the next one will retry.
+      if (!background) setLoadError("Couldn't reach the server. Check your connection and reload.");
     }
   }, [id]);
 
   useEffect(() => {
     load();
     // Pick up changes made by other people in the group.
-    const onFocus = () => document.visibilityState === "visible" && load();
+    const onFocus = () => document.visibilityState === "visible" && load(true);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);
     const timer = setInterval(onFocus, 20000);

@@ -25,7 +25,16 @@ npm run dev
 
 Open http://localhost:3000. Without Redis configured, data is kept in memory and is lost when the dev server restarts. If no email service is set up, the sign-in code appears on the login page (local development only).
 
-Run the split-math tests with `npm test`.
+### Tests
+
+- `npm test` runs the split maths tests: hand-checked Splitwise scenarios, plus thousands of randomly generated groups. For every group they check that shares add up to each expense, balances sum to zero, and the suggested payments settle everyone exactly.
+- `npm run test:e2e` runs the full app test against a running dev server (sign-in, access control, all split types, payments, edits, emails and simultaneous edits). Start the server first with a fake email endpoint:
+
+  ```bash
+  RESEND_API_KEY=test RESEND_API_URL=http://localhost:4545/emails KV_TEST_LATENCY_MS=20 npx next dev
+  ```
+
+  `KV_TEST_LATENCY_MS` makes local storage as slow as a real database, so the simultaneous-edit test is meaningful.
 
 ## Deploy to Vercel
 

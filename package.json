@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx --test lib/split.test.ts"
+    "test": "tsx --test lib/split.test.ts",
+    "test:e2e": "tsx tests/e2e.ts"
   },
   "dependencies": {
     "@upstash/redis": "^1.34.0",

@@ -15,10 +15,16 @@ export function allocate(total: number, weights: [string, number][]): Record<str
   });
   let remaining = total - parts.reduce((s, p) => s + p.floor, 0);
   const byFrac = [...parts].sort((a, b) => b.frac - a.frac || a.i - b.i);
-  for (const p of byFrac) {
-    if (remaining <= 0) break;
-    p.floor += 1;
+  for (let k = 0; remaining > 0; k = (k + 1) % byFrac.length) {
+    byFrac[k].floor += 1;
     remaining -= 1;
+  }
+  // Floating-point error can (very rarely) push a floor one cent too high; take it back.
+  for (let k = byFrac.length - 1; remaining < 0; k = (k - 1 + byFrac.length) % byFrac.length) {
+    if (byFrac[k].floor > 0) {
+      byFrac[k].floor -= 1;
+      remaining += 1;
+    }
   }
   for (const p of parts) out[p.id] = p.floor;
   return out;
