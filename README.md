@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. Without Redis configured, data is kept in memory and is lost when the dev server restarts. Without `RESEND_API_KEY`, the sign-in code appears on the login page (local development only).
+Open http://localhost:3000. Without Redis configured, data is kept in memory and is lost when the dev server restarts. If no email service is set up, the sign-in code appears on the login page (local development only).
 
 Run the split-math tests with `npm test`.
 
@@ -36,14 +36,17 @@ Run the split-math tests with `npm test`.
 
 ### Email: sign-in codes and notifications (required)
 
-1. Create a free account at [resend.com](https://resend.com) and make an API key.
-2. In Resend, verify a domain you own (for example `yourdomain.com`).
-3. In Vercel, under **Settings → Environment Variables**, add:
-   - `RESEND_API_KEY`: your Resend API key
-   - `EMAIL_FROM`: for example `SplitApp <splits@yourdomain.com>` (it must use your verified domain)
+**Option 1: Gmail (no domain needed)**
+1. On the Gmail account you want to send from, turn on 2-Step Verification: https://myaccount.google.com/signinoptions/twosv
+2. Create an App Password at https://myaccount.google.com/apppasswords (name it "SplitApp") and copy the 16-character password.
+3. In Vercel, under **Settings → Environment Variables**, add `GMAIL_USER` (your Gmail address) and `GMAIL_APP_PASSWORD` (the App Password).
 4. Redeploy.
 
-When someone adds or edits an expense, the payer and everyone who owes a share are emailed if they have an email address. **Sign-in depends on email**, so in production nobody can sign in until `RESEND_API_KEY` is set. Until you verify a domain, Resend only delivers to your own account's email address.
+Gmail allows about 500 emails per day. Emails come from your Gmail address with the display name "SplitApp".
+
+**Option 2: Resend (if you have a domain)**: set `RESEND_API_KEY` and `EMAIL_FROM` (an address on a domain you've verified in Resend).
+
+When someone adds or edits an expense, the payer and everyone who owes a share are emailed if they have an email address. **Sign-in depends on email**, so in production nobody can sign in until one of the options above is set up.
 
 You can also deploy from the command line with `npx vercel`, then add the Redis integration in the dashboard.
 

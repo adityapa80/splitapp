@@ -1,3 +1,4 @@
+import nodemailer, { type Transporter } from "nodemailer";
 import type { Expense, Group } from "./types";
 import { computeShares, notifyRecipients } from "./split";
 import { formatMoney } from "./money";
@@ -15,12 +16,29 @@ export function parseEmail(input: unknown): string | null {
   return s.length <= 254 && EMAIL_RE.test(s) ? s : null;
 }
 
-export const emailEnabled = Boolean(process.env.RESEND_API_KEY);
+// Two ways to send: your Gmail account (no domain needed) or Resend (needs a verified domain).
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ""); // Google shows it as "abcd efgh ijkl mnop"
+
+export const emailEnabled = Boolean((gmailUser && gmailPass) || process.env.RESEND_API_KEY);
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+let gmail: Transporter | null = null;
+
 async function send(to: string, subject: string, html: string, text: string) {
+  if (gmailUser && gmailPass) {
+    gmail ??= nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: { user: gmailUser, pass: gmailPass },
+    });
+    await gmail.sendMail({ from: `SplitApp <${gmailUser}>`, to, subject, html, text });
+    return;
+  }
+
   const res = await fetch(process.env.RESEND_API_URL || "https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
