@@ -16,11 +16,15 @@ export function parseEmail(input: unknown): string | null {
   return s.length <= 254 && EMAIL_RE.test(s) ? s : null;
 }
 
-// Two ways to send: your Gmail account (no domain needed) or Resend (needs a verified domain).
+// Three ways to send, checked in this order:
+//   Brevo (no domain needed): BREVO_API_KEY + EMAIL_FROM_ADDRESS (a sender verified in Brevo)
+//   Gmail (no domain needed): GMAIL_USER + GMAIL_APP_PASSWORD
+//   Resend (needs a verified domain): RESEND_API_KEY + EMAIL_FROM
+const brevoKey = process.env.BREVO_API_KEY;
 const gmailUser = process.env.GMAIL_USER;
 const gmailPass = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, ""); // Google shows it as "abcd efgh ijkl mnop"
 
-export const emailEnabled = Boolean((gmailUser && gmailPass) || process.env.RESEND_API_KEY);
+export const emailEnabled = Boolean(brevoKey || (gmailUser && gmailPass) || process.env.RESEND_API_KEY);
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -28,6 +32,22 @@ const esc = (s: string) =>
 let gmail: Transporter | null = null;
 
 async function send(to: string, subject: string, html: string, text: string) {
+  if (brevoKey) {
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": brevoKey, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        sender: { name: "SplitApp", email: process.env.EMAIL_FROM_ADDRESS },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+    if (!res.ok) throw new Error(`Brevo ${res.status}: ${await res.text()}`);
+    return;
+  }
+
   if (gmailUser && gmailPass) {
     gmail ??= nodemailer.createTransport({
       host: "smtp.gmail.com",

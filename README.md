@@ -36,7 +36,15 @@ Run the split-math tests with `npm test`.
 
 ### Email: sign-in codes and notifications (required)
 
-**Option 1: Gmail (no domain needed)**
+**Option 1: Brevo (no domain needed, recommended)**
+1. Sign up for free at https://www.brevo.com.
+2. Go to **Senders, Domains & Dedicated IPs → Senders → Add a sender**. Enter your Gmail address, then click the confirmation link Brevo emails you.
+3. Go to **SMTP & API → API Keys → Generate a new API key** and copy it (it starts with `xkeysib-`).
+4. In Vercel, add `BREVO_API_KEY` (the key) and `EMAIL_FROM_ADDRESS` (the Gmail address you verified), then redeploy.
+
+The free plan allows 300 emails per day.
+
+**Option 2: Gmail (no domain needed)**
 1. On the Gmail account you want to send from, turn on 2-Step Verification: https://myaccount.google.com/signinoptions/twosv
 2. Create an App Password at https://myaccount.google.com/apppasswords (name it "SplitApp") and copy the 16-character password.
 3. In Vercel, under **Settings → Environment Variables**, add `GMAIL_USER` (your Gmail address) and `GMAIL_APP_PASSWORD` (the App Password).
@@ -44,7 +52,7 @@ Run the split-math tests with `npm test`.
 
 Gmail allows about 500 emails per day. Emails come from your Gmail address with the display name "SplitApp".
 
-**Option 2: Resend (if you have a domain)**: set `RESEND_API_KEY` and `EMAIL_FROM` (an address on a domain you've verified in Resend).
+**Option 3: Resend (if you have a domain)**: set `RESEND_API_KEY` and `EMAIL_FROM` (an address on a domain you've verified in Resend).
 
 When someone adds or edits an expense, the payer and everyone who owes a share are emailed if they have an email address. **Sign-in depends on email**, so in production nobody can sign in until one of the options above is set up.
 
